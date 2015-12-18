@@ -1,0 +1,155 @@
+#! /bin/bash
+# declare DOMAIN variable
+DOMAIN='bjlbernal.com'
+DPATH=${PWD}'/'
+DRY=false
+
+if [[ $1 == '-d' ]] ;
+  then
+  echo "Dry run mode."
+  DRY=true 
+fi
+
+echo 'The current directory path is: '$DPATH
+
+function sync2 {
+# modify $IFS
+  SAVEIFS=$IFS
+  IFS=$(echo -en "\n\b")
+
+  echo "Please be patient. This may take a while."
+
+  DEV_LS=`ls -R ~/www/dev/app/*`
+  DEV_LS_ARRAY=( $DEV_LS )
+  str_search=':'
+  str_replace=''
+  dir_search='dev\/app\/'
+  dir_replace='www/app/'
+
+  for element in "${DEV_LS_ARRAY[@]}"
+  do
+# if line is the directory being listed
+    if [[ $element == /home/bjlbernal1/* ]] ;
+      then
+      FULLDIR=${element//$str_search/$str_replace}
+      DEV_DIR=${FULLDIR//$DPATH/''}
+      WWW_DIR=${DEV_DIR//$dir_search/$dir_replace}
+    else
+# if the node is not a directory and not in the tmp directory
+      if [ ! -d $DEV_DIR'/'$element ] && [[ ! $DEV_DIR == *app/tmp* ]] ; 
+        then
+        WWW_PATH=$WWW_DIR'/'$element
+        DEV_PATH=$DEV_DIR'/'$element
+# if WWW_PATH file is older than DEV_PATH file
+        if [ $WWW_PATH -ot $DEV_PATH ] ;
+        then
+          echo 'cp '$DEV_PATH' '$WWW_PATH
+          if [[ $DRY == false ]] ;
+            then
+            `cp $DEV_PATH $WWW_PATH`
+          fi
+        fi
+# if the dev node is a symbolic link and not in www path
+      elif [ -h $DEV_DIR'/'$element ] && [ ! -d $WWW_DIR'/'$element ]
+        then 
+        #echo 'ls -la '$DEV_DIR'/'$element
+        LN_REC=`ls -la $DEV_DIR/$element`
+        #echo ${LN_REC}
+        DEV_LNK=`echo $LN_REC | grep -Po 'dev\/app\/.*?\s'`
+        DEV_LNK="$(echo -e "${DEV_LNK}" | sed -e 's/[[:space:]]*$//')"
+        #echo ${DEV_LNK}
+        TARGET=`echo $LN_REC | grep -Po '\/home\/.*?$'`
+        #echo ${TARGET}
+        WWW_LNK=${DEV_LNK//$dir_search/$dir_replace}
+        #echo ${WWW_LNK}
+        echo 'ln -s '$TARGET' '$WWW_LNK
+        if [[ $DRY == false ]] ;
+          then
+          `ln -s $TARGET $WWW_LNK`
+        fi
+# if the dev node is a directory and not in www path
+      elif [ -d $DEV_DIR'/'$element ] && [ ! -d $WWW_DIR'/'$element ]
+        then
+        echo 'mkdir '$WWW_DIR'/'$element
+        if [[ $DRY == false ]] ;
+          then
+          `mkdir $WWW_DIR/$element`
+        fi
+      fi
+    fi
+  done
+
+  WWW_LS=`ls -R ~/www/www/app/*`
+  WWW_LS_ARRAY=( $WWW_LS )
+  WWW_DIR_ARRAY=()
+  str_search=':'
+  str_replace=''
+  dir_search='www\/app\/'
+  dir_replace='dev/app/'
+
+  for element in "${WWW_LS_ARRAY[@]}"
+  do
+# if line is the directory being listed
+    if [[ $element == /home/bjlbernal1/* ]] ;
+      then
+      FULLDIR=${element//$str_search/$str_replace}
+      WWW_DIR=${FULLDIR//$DPATH/''}
+      DEV_DIR=${WWW_DIR//$dir_search/$dir_replace}
+    else
+# if the node is not a directory and not in the tmp directory
+      if [ ! -d $WWW_DIR'/'$element ] && [[ ! $WWW_DIR == *app/tmp* ]]
+        then
+        WWW_PATH=$WWW_DIR'/'$element
+        DEV_PATH=$DEV_DIR'/'$element
+# if WWW_PATH file is not a DEV_PATH file
+        if [ ! -f $DEV_PATH ] ;
+          then
+            echo 'rm '$WWW_PATH
+          if [[ $DRY == false ]] ;
+            then
+            #`rm $WWW_PATH`
+            echo 'rm '$WWW_PATH
+          fi
+        fi
+# if the www node is a directory and not in dev path
+      elif [ -d $WWW_DIR'/'$element ] && [ ! -d $DEV_DIR'/'$element ] 
+        then 
+        WWW_DIR_ARRAY+=($WWW_DIR'/'$element);
+      fi
+    fi
+  done
+
+  #for element in "${WWW_LS_ARRAY[@]}"
+  for (( idx=${#WWW_DIR_ARRAY[@]}-1 ; idx>=0 ; idx-- )) ;
+  do
+    WWW_DIR=${WWW_DIR_ARRAY[idx]}
+    DEV_DIR=${WWW_DIR//$dir_search/$dir_replace}
+# if line is the directory being listed
+    if [ -d $WWW_DIR ] && [ ! -d $DEV_DIR ]
+      then
+      echo 'rmdir '$WWW_DIR
+      if [[ $DRY == false ]] ;
+        then
+        #`rmdir $WWW_DIR/$element`
+        echo 'rmdir '$WWW_DIR
+      fi
+    fi
+  done
+
+# restore $IFS
+  IFS=$SAVEIFS
+}
+
+while true;
+do
+  echo "If you made changes to css/js, you should first run '~/minify.sh source/path/file.js > destination/path/file.min.js' against raw file"
+  echo "If you made changes to css and already minified it, make sure it is part of the css.order list and that you have run '~/catmincss.sh source/css/path/'"
+  echo "If you made changes to js and already minified it, make sure it is part of the js.order list and that you have run '~/catminjs.sh source/js/path/'"
+  read -p "Is $DOMAIN the domain to sync? " yn
+  case $yn in
+    [Yy]* ) sync2; break;;
+    [Nn]* ) exit;;
+    * ) echo "Please answer (Y/y)es or (N/n)o.";;
+  esac
+done
+
