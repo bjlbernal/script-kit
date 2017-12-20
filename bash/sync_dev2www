@@ -1,137 +1,109 @@
 #! /bin/bash
 # declare DOMAIN variable
-DOMAIN='bjlbernal.com'
+DOMAIN=${PWD##*/}
 DPATH=${PWD}'/'
+DIFF=false
 DRY=false
+SOURCE_DIR=''
+DEST_DIR=''
 
-if [[ $1 == '-d' ]] ;
-  then
-  echo "Dry run mode."
-  DRY=true 
+while [[ $# -gt 0 ]]
+do
+  cmdKey="$1"
+
+  case $cmdKey in
+    -diff)
+      echo "Diff mode."
+      DIFF=true
+      DRY=true
+      ;;
+    -d)
+      echo "Dry run mode."
+      DRY=true
+      ;;
+    *)
+      if [[ $SOURCE_DIR ==  '' ]] ; then
+        SOURCE_DIR=$cmdKey
+      elif [[ $DEST_DIR == '' ]] ; then
+        DEST_DIR=$cmdKey
+      fi
+      ;;
+  esac
+shift
+done
+
+#if [[ $1 == '-diff' ]] ; then
+#  echo "Diff mode."
+#  DRY=true
+#elif [[ $1 == '-d' ]] ; then
+#  echo "Dry run mode."
+#  DRY=true
+#fi
+
+if [[ $SOURCE_DIR == '' ]] ; then
+  SOURCE_DIR='dev'
+  if [[ $DEST_DIR == '' ]] ; then
+    DEST_DIR='www'
+  fi
 fi
 
-echo 'The current directory path is: '$DPATH
+#if [[ $DRY == true ]] ; then
+#  if [[ $2 != '' ]] ; then
+#    SOURCE_DIR=$2
+#  fi
+#
+#  if [[ $3 != '' ]] ; then
+#    DEST_DIR=$3
+#  fi
+#else
+#  if [[ $1 != '' ]] ; then
+#    SOURCE_DIR=$1
+#  fi
+#
+#  if [[ $2 != '' ]] ; then
+#    DEST_DIR=$2
+#  fi
+#fi
 
-function sync2 {
-# modify $IFS
+echo 'The current directory path is: '$DPATH
+echo 'The source directory is:       '$SOURCE_DIR
+echo 'The destination directory is:  '$DEST_DIR
+
+function diffFiles {
+ # modify $IFS
   SAVEIFS=$IFS
   IFS=$(echo -en "\n\b")
 
   echo "Please be patient. This may take a while."
 
-  DEV_LS=`ls -R ~/www/dev/app/*`
+  if [[ $DOMAIN == www ]] ; then
+    DEV_LS=`ls -R ~/www/$SOURCE_DIR/app/*`
+  else
+    DEV_LS=`ls -R ~/www/$DOMAIN/$SOURCE_DIR/app/*`
+  fi
+
   DEV_LS_ARRAY=( $DEV_LS )
   str_search=':'
   str_replace=''
-  dir_search='dev\/app\/'
-  dir_replace='www/app/'
+  dir_search=$SOURCE_DIR'\/app\/'
+  dir_replace=$DEST_DIR'/app/'
 
-  for element in "${DEV_LS_ARRAY[@]}"
-  do
+  for element in "${DEV_LS_ARRAY[@]}" ; do
 # if line is the directory being listed
-    if [[ $element == /home/bjlbernal1/* ]] ;
-      then
+    if [[ $element == /home/bjlbernal1/* ]] ; then
       FULLDIR=${element//$str_search/$str_replace}
       DEV_DIR=${FULLDIR//$DPATH/''}
       WWW_DIR=${DEV_DIR//$dir_search/$dir_replace}
     else
 # if the node is not a directory and not in the tmp directory
-      if [ ! -d $DEV_DIR'/'$element ] && [[ ! $DEV_DIR == *app/tmp* ]] ; 
-        then
+      if [ ! -d $DEV_DIR'/'$element ] && [[ ! $DEV_DIR == *app/tmp* ]] && [[ ! $DEV_DIR'/'$element == *app/webroot/error_log* ]] ; then
         WWW_PATH=$WWW_DIR'/'$element
         DEV_PATH=$DEV_DIR'/'$element
 # if WWW_PATH file is older than DEV_PATH file
-        if [ $WWW_PATH -ot $DEV_PATH ] ;
-        then
-          echo 'cp '$DEV_PATH' '$WWW_PATH
-          if [[ $DRY == false ]] ;
-            then
-            `cp $DEV_PATH $WWW_PATH`
-          fi
+        if [ $WWW_PATH -ot $DEV_PATH ] ; then
+          echo 'diff '$DEV_PATH' '$WWW_PATH
+          echo "`diff $DEV_PATH $WWW_PATH`"
         fi
-# if the dev node is a symbolic link and not in www path
-      elif [ -h $DEV_DIR'/'$element ] && [ ! -d $WWW_DIR'/'$element ]
-        then 
-        #echo 'ls -la '$DEV_DIR'/'$element
-        LN_REC=`ls -la $DEV_DIR/$element`
-        #echo ${LN_REC}
-        DEV_LNK=`echo $LN_REC | grep -Po 'dev\/app\/.*?\s'`
-        DEV_LNK="$(echo -e "${DEV_LNK}" | sed -e 's/[[:space:]]*$//')"
-        #echo ${DEV_LNK}
-        TARGET=`echo $LN_REC | grep -Po '\/home\/.*?$'`
-        #echo ${TARGET}
-        WWW_LNK=${DEV_LNK//$dir_search/$dir_replace}
-        #echo ${WWW_LNK}
-        echo 'ln -s '$TARGET' '$WWW_LNK
-        if [[ $DRY == false ]] ;
-          then
-          `ln -s $TARGET $WWW_LNK`
-        fi
-# if the dev node is a directory and not in www path
-      elif [ -d $DEV_DIR'/'$element ] && [ ! -d $WWW_DIR'/'$element ]
-        then
-        echo 'mkdir '$WWW_DIR'/'$element
-        if [[ $DRY == false ]] ;
-          then
-          `mkdir $WWW_DIR/$element`
-        fi
-      fi
-    fi
-  done
-
-  WWW_LS=`ls -R ~/www/www/app/*`
-  WWW_LS_ARRAY=( $WWW_LS )
-  WWW_DIR_ARRAY=()
-  str_search=':'
-  str_replace=''
-  dir_search='www\/app\/'
-  dir_replace='dev/app/'
-
-  for element in "${WWW_LS_ARRAY[@]}"
-  do
-# if line is the directory being listed
-    if [[ $element == /home/bjlbernal1/* ]] ;
-      then
-      FULLDIR=${element//$str_search/$str_replace}
-      WWW_DIR=${FULLDIR//$DPATH/''}
-      DEV_DIR=${WWW_DIR//$dir_search/$dir_replace}
-    else
-# if the node is not a directory and not in the tmp directory
-      if [ ! -d $WWW_DIR'/'$element ] && [[ ! $WWW_DIR == *app/tmp* ]]
-        then
-        WWW_PATH=$WWW_DIR'/'$element
-        DEV_PATH=$DEV_DIR'/'$element
-# if WWW_PATH file is not a DEV_PATH file
-        if [ ! -f $DEV_PATH ] ;
-          then
-            echo 'rm '$WWW_PATH
-          if [[ $DRY == false ]] ;
-            then
-            #`rm $WWW_PATH`
-            echo 'rm '$WWW_PATH
-          fi
-        fi
-# if the www node is a directory and not in dev path
-      elif [ -d $WWW_DIR'/'$element ] && [ ! -d $DEV_DIR'/'$element ] 
-        then 
-        WWW_DIR_ARRAY+=($WWW_DIR'/'$element);
-      fi
-    fi
-  done
-
-  #for element in "${WWW_LS_ARRAY[@]}"
-  for (( idx=${#WWW_DIR_ARRAY[@]}-1 ; idx>=0 ; idx-- )) ;
-  do
-    WWW_DIR=${WWW_DIR_ARRAY[idx]}
-    DEV_DIR=${WWW_DIR//$dir_search/$dir_replace}
-# if line is the directory being listed
-    if [ -d $WWW_DIR ] && [ ! -d $DEV_DIR ]
-      then
-      echo 'rmdir '$WWW_DIR
-      if [[ $DRY == false ]] ;
-        then
-        #`rmdir $WWW_DIR/$element`
-        echo 'rmdir '$WWW_DIR
       fi
     fi
   done
@@ -140,15 +112,153 @@ function sync2 {
   IFS=$SAVEIFS
 }
 
-while true;
-do
-  echo "If you made changes to css/js, you should first run '~/minify.sh source/path/file.js > destination/path/file.min.js' against raw file"
+function sync2 {
+# modify $IFS
+  SAVEIFS=$IFS
+  IFS=$(echo -en "\n\b")
+
+  echo "Please be patient. This may take a while."
+
+  if [[ $DOMAIN == www ]] ; then
+    DEV_LS=`ls -R ~/www/$SOURCE_DIR/app/*`
+  else
+    DEV_LS=`ls -R ~/www/$DOMAIN/$SOURCE_DIR/app/*`
+  fi
+
+  DEV_LS_ARRAY=( $DEV_LS )
+  str_search=':'
+  str_replace=''
+  dir_search=$SOURCE_DIR'\/app\/'
+  dir_replace=$DEST_DIR'/app/'
+
+  for element in "${DEV_LS_ARRAY[@]}" ; do
+# if line is the directory being listed
+    if [[ $element == /home/bjlbernal1/* ]] ; then
+      FULLDIR=${element//$str_search/$str_replace}
+      DEV_DIR=${FULLDIR//$DPATH/''}
+      WWW_DIR=${DEV_DIR//$dir_search/$dir_replace}
+    else
+# if the dev node is a directory and not in www path
+      if [ -d $DEV_DIR ] && [ ! -d $WWW_DIR ] ; then
+        echo 'mkdir -p '$WWW_DIR
+        if [[ $DRY == false ]] ;
+          then
+          `mkdir -p $WWW_DIR`
+        fi
+      fi
+# if the node is not a directory and not in the tmp directory
+      if [ ! -d $DEV_DIR'/'$element ] && [[ ! $DEV_DIR == *app/tmp* ]] && [[ ! $DEV_DIR'/'$element == *app/webroot/error_log* ]] ; then
+        WWW_PATH=$WWW_DIR'/'$element
+        DEV_PATH=$DEV_DIR'/'$element
+# if WWW_PATH file is older than DEV_PATH file
+        if [ $WWW_PATH -ot $DEV_PATH ] ; then
+          if [ -d $WWW_PATH ] ; then
+            DIFF_LEN=`diff $DEV_PATH $WWW_PATH`
+          else
+            echo 'cp '$DEV_PATH' '$WWW_PATH
+            if [[ $DRY == false ]] ; then
+              `cp $DEV_PATH $WWW_PATH`
+            fi
+          fi
+# if DIFF_LEN is greater than 0
+          if [ ${#DIFF_LEN} -gt 0 ] ; then
+            echo 'cp '$DEV_PATH' '$WWW_PATH
+            if [[ $DRY == false ]] ; then
+              `cp $DEV_PATH $WWW_PATH`
+            fi
+          fi
+        fi
+# if the dev node is a symbolic link and not in www path
+      elif [ -h $DEV_DIR'/'$element ] && [ ! -d $WWW_DIR'/'$element ] ; then 
+        #echo 'ls -la '$DEV_DIR'/'$element
+        LN_REC=`ls -la $DEV_DIR/$element`
+        #echo ${LN_REC}
+        DEV_LNK=`echo $LN_REC | grep -Po $SOURCE_DIR'\/app\/.*?\s'`
+        DEV_LNK="$(echo -e "${DEV_LNK}" | sed -e 's/[[:space:]]*$//')"
+        #echo ${DEV_LNK}
+        TARGET=`echo $LN_REC | grep -Po '\/home\/.*?$'`
+        #echo ${TARGET}
+        WWW_LNK=${DEV_LNK//$dir_search/$dir_replace}
+        #echo ${WWW_LNK}
+        echo 'ln -s '$TARGET' '$WWW_LNK
+        if [[ $DRY == false ]] ; then
+          `ln -s $TARGET $WWW_LNK`
+        fi
+      fi
+    fi
+  done
+
+  if [[ $DOMAIN == www ]] ; then
+    WWW_LS=`ls -R ~/www/$DEST_DIR/app/*`
+  else
+    WWW_LS=`ls -R ~/www/$DOMAIN/$DEST_DIR/app/*`
+  fi
+
+  WWW_LS_ARRAY=( $WWW_LS )
+  WWW_DIR_ARRAY=()
+  str_search=':'
+  str_replace=''
+  dir_search=$DEST_DIR'\/app\/'
+  dir_replace=$SOURCE_DIR'/app/'
+
+  for element in "${WWW_LS_ARRAY[@]}" ; do
+# if line is the directory being listed
+    if [[ $element == /home/bjlbernal1/* ]] ; then
+      FULLDIR=${element//$str_search/$str_replace}
+      WWW_DIR=${FULLDIR//$DPATH/''}
+      DEV_DIR=${WWW_DIR//$dir_search/$dir_replace}
+    else
+# if the node is not a directory and not in the tmp directory
+      if [ ! -d $WWW_DIR'/'$element ] && [[ ! $WWW_DIR == *app/tmp* ]] ; then
+        WWW_PATH=$WWW_DIR'/'$element
+        DEV_PATH=$DEV_DIR'/'$element
+# if WWW_PATH file is not a DEV_PATH file
+        if [ ! -f $DEV_PATH ] ; then
+          echo 'rm '$WWW_PATH
+# if DRY is false and WWW_DIR is not webroot/img, really rm.
+          if [[ $DRY == false ]] && [[ ! $WWW_DIR == *app/webroot/img* ]] ; then
+            `rm $WWW_PATH`
+          fi
+        fi
+# if the www node is a directory and not in dev path
+      elif [ -d $WWW_DIR'/'$element ] && [ ! -d $DEV_DIR'/'$element ] ; then 
+        WWW_DIR_ARRAY+=($WWW_DIR'/'$element);
+      fi
+    fi
+  done
+
+  #for element in "${WWW_LS_ARRAY[@]}"
+  for (( idx=${#WWW_DIR_ARRAY[@]}-1 ; idx>=0 ; idx-- )) ; do
+    WWW_DIR=${WWW_DIR_ARRAY[idx]}
+    DEV_DIR=${WWW_DIR//$dir_search/$dir_replace}
+# if line is the directory being listed
+    if [ -d $WWW_DIR ] && [ ! -d $DEV_DIR ] ; then
+      echo 'rmdir '$WWW_DIR
+      if [[ $DRY == false ]] ; then
+        `rmdir $WWW_DIR`
+      fi
+    fi
+  done
+
+# restore $IFS
+  IFS=$SAVEIFS
+}
+
+while true ; do
+  echo "If you made changes to css/js, you should first run '~/minify.sh source/path/file > destination/path/file.min' against raw file"
   echo "If you made changes to css and already minified it, make sure it is part of the css.order list and that you have run '~/catmincss.sh source/css/path/'"
   echo "If you made changes to js and already minified it, make sure it is part of the js.order list and that you have run '~/catminjs.sh source/js/path/'"
   read -p "Is $DOMAIN the domain to sync? " yn
   case $yn in
-    [Yy]* ) sync2; break;;
-    [Nn]* ) exit;;
+    [Yy]* )
+      if [[ $DIFF == true ]] ; then
+        diffFiles;
+      else
+        sync2;
+      fi
+      break;;
+    [Nn]* )
+      exit;;
     * ) echo "Please answer (Y/y)es or (N/n)o.";;
   esac
 done
