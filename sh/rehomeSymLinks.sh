@@ -3,6 +3,7 @@
 # declaring variables
 SYM_LINK_FILE='symLinks'
 CURRENT_PATH=`pwd -P`
+OLD_PATH='/var/chroot/home/content///html'
 
 `ls -laR ~/www/* | grep '^lr\|:$' > $SYM_LINK_FILE`
 
@@ -20,7 +21,7 @@ while read line; do
     arr=($line)
     sym_link_file=${arr[8]}
     sym_link_path=${arr[10]}
-    sym_link_path=${sym_link_path/'/var/chroot/home/content/07/7427907/html'/'~/www'}
+    sym_link_path=${sym_link_path/$OLD_PATH/'~/www'}
 
 #   Exclude parent directory paths
     if [[ ${sym_link_path:0:2} =~ '..' ]] ; then
